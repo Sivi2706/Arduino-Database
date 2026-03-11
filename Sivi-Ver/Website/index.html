@@ -1,11 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Arduino Web Dashboard</title>
-<link rel="stylesheet" href="styles.css">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #1a1d27;
+    --border:  #2a2d3a;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --success: #22c55e;
+    --warn:    #f59e0b;
+    --danger:  #ef4444;
+    --accent:  #6366f1;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Topbar ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.02em; }
+  .status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+
+  /* ── Layout ── */
+  .container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .card h2 {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .card p  { font-size: 0.95rem; }
+  .small   { font-size: 0.82rem; color: var(--muted); }
+
+  /* ── Slider ── */
+  input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+  /* ── Servo visual ── */
+  .servoArea { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-top: 0.25rem; }
+  .servoDial {
+    position: relative;
+    width: 120px; height: 60px;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 60px 60px 0 0;
+    overflow: hidden;
+  }
+  .servoArm {
+    position: absolute;
+    bottom: 0; left: 50%;
+    width: 4px; height: 52px;
+    background: var(--accent);
+    border-radius: 2px;
+    transform-origin: bottom center;
+    transform: translateX(-50%) rotate(0deg);
+    transition: transform 0.25s ease;
+  }
+  .servoPivot {
+    position: absolute;
+    bottom: -6px; left: 50%;
+    transform: translateX(-50%);
+    width: 12px; height: 12px;
+    background: var(--text);
+    border-radius: 50%;
+  }
+  .servoReadout { font-size: 0.85rem; color: var(--muted); }
+
+  /* ── IR badge ── */
+  .ir-badge {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--border);
+    color: var(--muted);
+    transition: background 0.2s, color 0.2s;
+  }
+  .ir-badge.active { background: #450a0a; color: var(--danger); }
+
+  /* ── Serial monitor ── */
+  .serial-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.82rem;
+  }
+  .btn-small {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.78rem;
+    background: var(--border);
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-small:hover { background: var(--accent); }
+
+  .serial-container {
+    height: 220px;
+    overflow-y: auto;
+    background: #0a0c12;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem;
+    scroll-behavior: smooth;
+  }
+  .serial-message {
+    display: flex;
+    gap: 0.6rem;
+    padding: 0.18rem 0;
+    border-bottom: 1px solid #1a1d27;
+    line-height: 1.5;
+  }
+  .serial-time { color: var(--muted); flex-shrink: 0; min-width: 72px; }
+  .serial-text { color: #a5f3fc; white-space: pre-wrap; word-break: break-word; }
+  .serial-text.heartbeat { color: #475569; font-style: italic; }
+  .serial-placeholder { color: var(--muted); font-style: italic; padding: 0.5rem 0; }
+
+  /* ── History toggle ── */
+  .history-toggle {
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+  .history-toggle:hover { color: var(--text); }
+</style>
 </head>
 
 <body>
@@ -13,7 +176,7 @@
 <header class="topbar">
   <h1>Arduino Web Dashboard</h1>
   <div class="status">
-    <span id="simDot" class="dot" style="background:var(--muted)"></span>
+    <span id="simDot" class="dot"></span>
     <span id="simText">Connecting…</span>
   </div>
 </header>
@@ -23,33 +186,60 @@
   <!-- SERVO CONTROL -->
   <section class="card">
     <h2>Servo Control</h2>
-    <p>Angle: <span id="angleValue">—</span>°</p>
+    <p>Set angle: <strong><span id="angleValue">90</span>°</strong></p>
     <input id="angleSlider" type="range" min="0" max="180" value="90" step="1">
     <div class="servoArea">
       <div class="servoDial">
         <div id="servoArm" class="servoArm"></div>
         <div class="servoPivot"></div>
       </div>
-      <p class="servoReadout">Angle: <span id="servoAngle">—</span>°</p>
+      <p class="servoReadout">ESP32 confirmed: <span id="servoAngle">—</span>°</p>
     </div>
   </section>
 
-  <!-- SENSOR STATUS -->
+  <!-- IR SENSOR -->
   <section class="card">
     <h2>IR Sensor Status</h2>
-    <p>Object Detected: <span id="irDetected">—</span></p>
-    <p class="small">IR Raw Value: <span id="irValue">—</span></p>
+    <p>Object Detected: <span id="irDetected" class="ir-badge">—</span></p>
+    <p class="small">Raw value: <span id="irValue">—</span></p>
     <p class="small">Last updated: <span id="irTimestamp">—</span></p>
+  </section>
+
+  <!-- SERIAL MONITOR -->
+  <section class="card">
+    <h2>Serial Monitor Output</h2>
+    <div class="serial-controls">
+      <button id="clearSerialBtn" class="btn-small">Clear</button>
+      <label style="display:flex;align-items:center;gap:0.3rem;">
+        <input type="checkbox" id="autoScrollSerial" checked> Auto-scroll
+      </label>
+      <label style="display:flex;align-items:center;gap:0.3rem;">
+        <input type="checkbox" id="showHeartbeat"> Show heartbeats
+      </label>
+      <button id="historyBtn" class="history-toggle">Load history</button>
+    </div>
+    <div id="serialContainer" class="serial-container">
+      <div id="serialMessages">
+        <div class="serial-placeholder">Waiting for serial data…</div>
+      </div>
+    </div>
   </section>
 
 </main>
 
 <script type="module">
 
-import { initializeApp }                   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+// ── Firebase SDK ──────────────────────────────────────────────────
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
-// ── Firebase config ──────────────────────────────────────────────
+import { getAuth, signInAnonymously, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+import { getDatabase, ref, onValue, set, query, limitToLast }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── Config ────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBlxLdiakI8Zv5gtRWtAcfwxTcW-XtGbTw",
   authDomain:        "sivi-arduino-database.firebaseapp.com",
@@ -57,29 +247,44 @@ const firebaseConfig = {
   projectId:         "sivi-arduino-database",
   storageBucket:     "sivi-arduino-database.firebasestorage.app",
   messagingSenderId: "854752663108",
-  appId:             "1:854752663108:web:b80bad680b96bb63478e11",
-  measurementId:     "G-C1XE1J4ZJR"
+  appId:             "1:854752663108:web:b80bad680b96bb63478e11"
 };
 
-const db = getDatabase(initializeApp(firebaseConfig));
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getDatabase(app);
 
-// ── DOM refs ─────────────────────────────────────────────────────
-const simDot      = document.getElementById("simDot");
-const simText     = document.getElementById("simText");
-const angleSlider = document.getElementById("angleSlider");
-const angleValue  = document.getElementById("angleValue");
-const servoArm    = document.getElementById("servoArm");
-const servoAngle  = document.getElementById("servoAngle");
-const irValue     = document.getElementById("irValue");
-const irDetected  = document.getElementById("irDetected");
-const irTimestamp = document.getElementById("irTimestamp");
+// ── DOM ───────────────────────────────────────────────────────────
+const simDot          = document.getElementById("simDot");
+const simText         = document.getElementById("simText");
+const angleSlider     = document.getElementById("angleSlider");
+const angleValue      = document.getElementById("angleValue");
+const servoArm        = document.getElementById("servoArm");
+const servoAngle      = document.getElementById("servoAngle");
+const irValue         = document.getElementById("irValue");
+const irDetected      = document.getElementById("irDetected");
+const irTimestamp     = document.getElementById("irTimestamp");
+const serialMessages  = document.getElementById("serialMessages");
+const clearSerialBtn  = document.getElementById("clearSerialBtn");
+const autoScrollCheck = document.getElementById("autoScrollSerial");
+const showHeartbeat   = document.getElementById("showHeartbeat");
+const historyBtn      = document.getElementById("historyBtn");
+const serialContainer = document.getElementById("serialContainer");
 
 // ── Helpers ───────────────────────────────────────────────────────
-function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
 
-function setConnected(ok) {
-  simDot.style.background = ok ? "var(--success)" : "var(--danger)";
-  simText.innerText        = ok ? "Connected to ESP32" : "Disconnected";
+function setStatus(state) {
+  const states = {
+    connecting:    { color: "var(--muted)",    text: "Connecting…" },
+    authenticating:{ color: "var(--muted)",    text: "Authenticating…" },
+    waiting:       { color: "var(--warn)",     text: "Authenticated — waiting for ESP32…" },
+    connected:     { color: "var(--success)",  text: "Connected to ESP32" },
+    error:         { color: "var(--danger)",   text: "Auth failed — enable Anonymous Auth in Firebase Console" },
+  };
+  const s = states[state] || states.connecting;
+  simDot.style.background = s.color;
+  simText.innerText        = s.text;
 }
 
 function applyServoUI(angle) {
@@ -90,44 +295,169 @@ function applyServoUI(angle) {
   angleValue.innerText     = a;
 }
 
-// ── Listen: servo/angle (ESP32 confirms position back) ───────────
-onValue(ref(db, "servo/angle"), snap => {
-  const val = snap.val();
-  if (val === null) return;
-  setConnected(true);
-  applyServoUI(val);
-});
+function formatTime(ts) {
+  if (!ts) return new Date().toLocaleTimeString();
+  const t = ts > 10_000_000_000 ? ts : ts * 1000;
+  return new Date(t).toLocaleTimeString();
+}
 
-// ── Listen: IR sensor written by ESP32 ───────────────────────────
-onValue(ref(db, "ir"), snap => {
-  const data = snap.val();
-  if (!data) return;
-
-  irValue.innerText      = data.raw      ?? "—";
-  irDetected.innerText   = data.detected  ? "YES" : "NO";
-  irDetected.style.color = data.detected  ? "var(--danger)" : "var(--muted)";
-
-  if (data.timestamp) {
-    irTimestamp.innerText = new Date(data.timestamp).toLocaleTimeString();
+function scrollToBottom() {
+  if (autoScrollCheck.checked) {
+    serialContainer.scrollTop = serialContainer.scrollHeight;
   }
+}
+
+// ── Serial display ────────────────────────────────────────────────
+function clearSerial() {
+  serialMessages.innerHTML = '<div class="serial-placeholder">Waiting for serial data…</div>';
+}
+
+function addSerialMessage(text, timestamp, prepend = false) {
+  // Remove placeholder
+  const ph = serialMessages.querySelector(".serial-placeholder");
+  if (ph) ph.remove();
+
+  // Optionally hide heartbeats
+  const isHeartbeat = text.startsWith("[heartbeat]");
+  if (isHeartbeat && !showHeartbeat.checked) return;
+
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "serial-message";
+
+  const timeSpan = document.createElement("span");
+  timeSpan.className   = "serial-time";
+  timeSpan.textContent = formatTime(timestamp);
+
+  const textSpan = document.createElement("span");
+  textSpan.className   = "serial-text" + (isHeartbeat ? " heartbeat" : "");
+  textSpan.textContent = text;
+
+  msgDiv.appendChild(timeSpan);
+  msgDiv.appendChild(textSpan);
+
+  if (prepend) {
+    serialMessages.prepend(msgDiv);
+  } else {
+    serialMessages.appendChild(msgDiv);
+    scrollToBottom();
+  }
+}
+
+clearSerialBtn.addEventListener("click", clearSerial);
+
+// Re-render when heartbeat visibility toggles
+showHeartbeat.addEventListener("change", () => {
+  // Just clear; next Firebase event will repopulate
+  clearSerial();
 });
 
-// ── Slider → write servo/angle to Firebase (ESP32 reads this) ────
+// ── Firebase listeners (called after auth confirmed) ──────────────
+function setupListeners() {
+
+  // ── Servo angle ─────────────────────────────────────────────────
+  onValue(ref(db, "servo/angle"), snap => {
+    const val = snap.val();
+    if (val === null || val === undefined) return;
+    setStatus("connected");
+    applyServoUI(val);
+  });
+
+  // ── IR sensor ───────────────────────────────────────────────────
+  onValue(ref(db, "ir"), snap => {
+    const data = snap.val();
+    if (!data) return;
+
+    irValue.innerText = data.raw ?? "—";
+
+    if (data.detected) {
+      irDetected.textContent = "YES";
+      irDetected.className   = "ir-badge active";
+    } else {
+      irDetected.textContent = "NO";
+      irDetected.className   = "ir-badge";
+    }
+
+    if (data.timestamp) {
+      irTimestamp.innerText = formatTime(data.timestamp);
+    }
+  });
+
+  // ── Serial latest — real-time single message ─────────────────────
+  // Fires every time ESP32 writes a new message (every ~1 second).
+  onValue(ref(db, "serial/latest"), snap => {
+    const data = snap.val();
+    if (!data || !data.text) return;
+    addSerialMessage(data.text, data.timestamp);
+  });
+}
+
+// ── Load history from /serial/log ────────────────────────────────
+// Called only when user clicks "Load history" button.
+function loadSerialHistory() {
+  historyBtn.textContent = "Loading…";
+  historyBtn.disabled    = true;
+
+  const histQuery = query(ref(db, "serial/log"), limitToLast(50));
+
+  onValue(histQuery, snap => {
+    const data = snap.val();
+    if (!data) {
+      historyBtn.textContent = "No history";
+      return;
+    }
+
+    clearSerial();
+
+    const entries = Object.entries(data)
+      .map(([, v]) => v)
+      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+    entries.forEach(entry => {
+      if (entry.text) addSerialMessage(entry.text, entry.timestamp);
+    });
+
+    historyBtn.textContent = "History loaded";
+    scrollToBottom();
+  }, { onlyOnce: true });
+}
+
+historyBtn.addEventListener("click", loadSerialHistory);
+
+// ── Slider → write servo/angle ────────────────────────────────────
 let writeTimer = null;
 angleSlider.addEventListener("input", () => {
   const angle = Number(angleSlider.value);
   angleValue.innerText = angle;
   applyServoUI(angle);
 
-  // Debounce: only write after user stops dragging for 80 ms
   clearTimeout(writeTimer);
   writeTimer = setTimeout(() => {
     set(ref(db, "servo/angle"), angle)
-      .catch(err => console.error("Firebase write error:", err));
+      .then(()  => console.log("Wrote servo/angle:", angle))
+      .catch(e  => console.error("Write error:", e));
   }, 80);
 });
 
-</script>
+// ── Anonymous auth then start listeners ───────────────────────────
+// REQUIRED in Firebase Console: Authentication → Sign-in method
+//   → Anonymous → Enable
+setStatus("authenticating");
 
+signInAnonymously(auth).catch(err => {
+  console.error("signInAnonymously error:", err);
+  setStatus("error");
+});
+
+onAuthStateChanged(auth, user => {
+  if (user) {
+    console.log("Auth OK — UID:", user.uid);
+    setStatus("waiting");
+    setupListeners();
+  } else {
+    setStatus("connecting");
+  }
+});
+
+</script>
 </body>
 </html>
