@@ -1,36 +1,36 @@
 # Firebase setup
 
 ## Step 1: Go to console 
-![Firebase Console](images/Pasted%20image%2020260311233221.png)
+![Firebase Console](Attachments/Pasted%20image%2020260311233221.png)
 
 ## Step 2: Create project 
-![Create Firebase Project](images/Pasted%20image%2020260311233502.png)
+![Create Firebase Project](Attachments/Pasted%20image%2020260311233502.png)
 
 ## Step 3: Add website app
-![Add Web App](images/Pasted%20image%2020260311233836.png)
+![Add Web App](Attachments/Pasted%20image%2020260311233836.png)
 
 ## Step 4: Register the web app
-![Register Web App](images/Pasted%20image%2020260311234211.png)
+![Register Web App](Attachments/Pasted%20image%2020260311234211.png)
 
 ## Step 5: Add firebaseConfig to .html 
-![Firebase Config](images/Pasted%20image%2020260311234431.png)
+![Firebase Config](Attachments/Pasted%20image%2020260311234431.png)
 ![Firebase Config Details](images/Pasted%20image%2020260311235045.png)
 
 ## Step 6: Create Realtime database 
-![Create Realtime Database](images/Pasted%20image%2020260311235406.png)
+![Create Realtime Database](Attachments/Pasted%20image%2020260311235406.png)
 
 ### Step 6.1: Choose server location 
-![Server Location](images/Pasted%20image%2020260311235454.png)
+![Server Location](Attachments/Pasted%20image%2020260311235454.png)
 
 ### Step 6.2: Use test mode for prototyping
-![Test Mode](images/Pasted%20image%2020260311235600.png)
+![Test Mode](Attachments/Pasted%20image%2020260311235600.png)
 
 ## Step 7: Create the data structure
-![Data Structure](images/Pasted%20image%2020260311235722.png)
+![Data Structure](Attachments/Pasted%20image%2020260311235722.png)
 ![Data Structure Details](images/Pasted%20image%2020260311235925.png)
 
 ## Step 8: Enable anonymous users
-![Anonymous Authentication](images/Pasted%20image%2020260312035000.png)
+![Anonymous Authentication](Attachments/Pasted%20image%2020260312035000.png)
 
 # ESP 32 setup 
 
