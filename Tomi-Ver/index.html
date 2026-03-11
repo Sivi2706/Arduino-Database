@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arduino Web Emulator (Servo + IR)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+ <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCANnCH1UZSUmpnREvUBUuWljsXUVPncd4",
+    authDomain: "databaseprogramming-8bd17.firebaseapp.com",
+    databaseURL: "https://databaseprogramming-8bd17-default-rtdb.firebaseio.com",
+    projectId: "databaseprogramming-8bd17",
+    storageBucket: "databaseprogramming-8bd17.firebasestorage.app",
+    messagingSenderId: "50050856683",
+    appId: "1:50050856683:web:d5dc3b27f81e04b4c830ae",
+    measurementId: "G-9WG26BRNT1"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const database = getDatabase(app); 
+
+  const angleSlider = document.getElementById('angleSlider');
+const angleValueDisplay = document.getElementById('angleValue');
+const servoAngleDisplay = document.getElementById('servoAngle');
+const servoArm = document.getElementById('servoArm');
+
+
+
+let setupTimer;
+angleSlider.addEventListener('input', () => {
+  const angle = parseInt(angleSlider.value);
+  
+  // Update local UI immediately so it feels smooth
+  angleValueDisplay.innerText = angle;
+
+  // "Debounce": Wait for the user to stop moving for 50ms before sending to Firebase
+  clearTimeout(setupTimer);
+  setupTimer = setTimeout(() => {
+    set(ref(database, 'servo/msgTitle'), angle)
+      .catch((error) => console.error("Firebase Sync Error:", error));
+  }, 50); // 50ms is fast enough to feel real-time but slow enough to prevent crashing
+});
+
+  // IR 
+const irDetectedDisplay = document.getElementById('irDetected');
+const irValueDisplay = document.getElementById('irValue'); 
+
+const irSensorRef = ref(database, 'sensor/obstacle');
+
+onValue(irSensorRef, (snapshot) => {
+  const data = snapshot.val();
+  
+  if (data !== null) {
+    if (irValueDisplay) {
+      irValueDisplay.innerText = data;
+    }
+
+    
+    if (data == 0) { 
+      irDetectedDisplay.innerText = "YES";
+      irDetectedDisplay.style.color = "red";
+    } else {
+      irDetectedDisplay.innerText = "NO";
+      irDetectedDisplay.style.color = "green";
+    }
+  }
+});
+</script>
+
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🧩</div>
+      <div>
+        <div class="title">Arduino Web Emulator</div>
+        <div class="subtitle">Servo output + IR sensor input (simulated)</div>
+      </div>
+    </div>
+    <div class="status">
+      <span class="dot" id="simDot" aria-hidden="true"></span>
+      <span id="simText">Simulation running</span>
+    </div>
+  </header>
+
+ <main class="container">
+  <section class="card">
+    <h2>Servo Control</h2>
+    <div class="row">
+      <label for="angleSlider">Adjust Angle</label>
+      <div class="pill"><span id="angleValue">90</span><span class="unit">°</span></div>
+    </div>
+
+    <input id="angleSlider" type="range" min="0" max="180" value="90" step="1"/>
+
+    <div class="servoArea">
+      <div class="servoDial">
+        <div class="servoArm" id="servoArm"></div>
+        <div class="servoPivot"></div>
+      </div>
+      <div class="servoReadout">
+        Angle: <strong><span id="servoAngle">90</span>°</strong>
+      </div>
+    </div>
+  </section>
+
+ <section class="card">
+  <h2>Sensor Status</h2>
+  <div class="stat">
+    <div class="statLabel">Object Detected?</div>
+    <div class="statValue" id="irDetected">—</div> 
+    
+    <div id="irValue" style="font-size: 0.8rem; color: gray;"></div>
+  </div>
+</section>
+</main>
+
+  <script src="app.js"></script>
+</body>
+</html>
