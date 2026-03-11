@@ -26,7 +26,6 @@
     min-height: 100vh;
   }
 
-  /* ── Topbar ── */
   .topbar {
     display: flex;
     align-items: center;
@@ -35,11 +34,10 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
   }
-  .topbar h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.02em; }
+  .topbar h1 { font-size: 1.1rem; font-weight: 600; }
   .status { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
 
-  /* ── Layout ── */
   .container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -49,7 +47,6 @@
     margin: 0 auto;
   }
 
-  /* ── Card ── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -69,7 +66,6 @@
   .card p  { font-size: 0.95rem; }
   .small   { font-size: 0.82rem; color: var(--muted); }
 
-  /* ── Slider ── */
   input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
 
   /* ── Servo visual ── */
@@ -90,7 +86,7 @@
     border-radius: 2px;
     transform-origin: bottom center;
     transform: translateX(-50%) rotate(0deg);
-    transition: transform 0.25s ease;
+    transition: transform 0.1s ease;
   }
   .servoPivot {
     position: absolute;
@@ -116,58 +112,84 @@
   .ir-badge.active { background: #450a0a; color: var(--danger); }
 
   /* ── Serial monitor ── */
-  .serial-controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.82rem;
-  }
-  .btn-small {
-    padding: 0.25rem 0.75rem;
-    font-size: 0.78rem;
-    background: var(--border);
-    color: var(--text);
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-small:hover { background: var(--accent); }
-
   .serial-container {
-    height: 220px;
+    height: 200px;
     overflow-y: auto;
     background: #0a0c12;
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.6rem 0.8rem;
     font-family: 'Courier New', monospace;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     scroll-behavior: smooth;
   }
+
   .serial-message {
-    display: flex;
-    gap: 0.6rem;
-    padding: 0.18rem 0;
+    padding: 0.2rem 0;
     border-bottom: 1px solid #1a1d27;
     line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
   }
-  .serial-time { color: var(--muted); flex-shrink: 0; min-width: 72px; }
-  .serial-text { color: #a5f3fc; white-space: pre-wrap; word-break: break-word; }
-  .serial-text.heartbeat { color: #475569; font-style: italic; }
-  .serial-placeholder { color: var(--muted); font-style: italic; padding: 0.5rem 0; }
+  .serial-message.from-esp  { color: #a5f3fc; }
+  .serial-message.from-web  { color: #86efac; }
+  .serial-placeholder { color: var(--muted); font-style: italic; padding: 0.4rem 0; }
 
-  /* ── History toggle ── */
-  .history-toggle {
-    font-size: 0.78rem;
-    color: var(--muted);
-    cursor: pointer;
-    text-decoration: underline;
-    background: none;
-    border: none;
-    padding: 0;
+  /* ── Message input ── */
+  .msg-row {
+    display: flex;
+    gap: 0.5rem;
   }
-  .history-toggle:hover { color: var(--text); }
+  .msg-input {
+    flex: 1;
+    padding: 0.45rem 0.7rem;
+    background: #0a0c12;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    outline: none;
+  }
+  .msg-input:focus { border-color: var(--accent); }
+
+  .btn-send {
+    padding: 0.45rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: opacity 0.15s;
+  }
+  .btn-send:hover { opacity: 0.85; }
+
+  .btn-small {
+    padding: 0.25rem 0.7rem;
+    font-size: 0.78rem;
+    background: var(--border);
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .btn-small:hover { background: var(--muted); }
+
+  .serial-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .serial-legend {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .legend-esp  { color: #a5f3fc; }
+  .legend-web  { color: #86efac; }
 </style>
 </head>
 
@@ -202,26 +224,31 @@
     <h2>IR Sensor Status</h2>
     <p>Object Detected: <span id="irDetected" class="ir-badge">—</span></p>
     <p class="small">Raw value: <span id="irValue">—</span></p>
-    <p class="small">Last updated: <span id="irTimestamp">—</span></p>
   </section>
 
   <!-- SERIAL MONITOR -->
   <section class="card">
-    <h2>Serial Monitor Output</h2>
-    <div class="serial-controls">
-      <button id="clearSerialBtn" class="btn-small">Clear</button>
-      <label style="display:flex;align-items:center;gap:0.3rem;">
-        <input type="checkbox" id="autoScrollSerial" checked> Auto-scroll
-      </label>
-      <label style="display:flex;align-items:center;gap:0.3rem;">
-        <input type="checkbox" id="showHeartbeat"> Show heartbeats
-      </label>
-      <button id="historyBtn" class="history-toggle">Load history</button>
+    <h2>Serial Monitor</h2>
+
+    <div class="serial-header">
+      <div class="serial-legend">
+        <span class="legend-esp">■ ESP32</span>
+        <span class="legend-web">■ Web</span>
+      </div>
+      <button id="clearBtn" class="btn-small">Clear</button>
     </div>
+
     <div id="serialContainer" class="serial-container">
       <div id="serialMessages">
-        <div class="serial-placeholder">Waiting for serial data…</div>
+        <div class="serial-placeholder">No messages yet. Type below to send one.</div>
       </div>
+    </div>
+
+    <!-- Message input -->
+    <div class="msg-row">
+      <input id="msgInput" class="msg-input" type="text"
+             placeholder="Type a message and press Enter or Send…" maxlength="200">
+      <button id="sendBtn" class="btn-send">Send</button>
     </div>
   </section>
 
@@ -229,14 +256,13 @@
 
 <script type="module">
 
-// ── Firebase SDK ──────────────────────────────────────────────────
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 
 import { getAuth, signInAnonymously, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-import { getDatabase, ref, onValue, set, query, limitToLast }
+import { getDatabase, ref, onValue, set }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ── Config ────────────────────────────────────────────────────────
@@ -255,36 +281,33 @@ const auth = getAuth(app);
 const db   = getDatabase(app);
 
 // ── DOM ───────────────────────────────────────────────────────────
-const simDot          = document.getElementById("simDot");
-const simText         = document.getElementById("simText");
-const angleSlider     = document.getElementById("angleSlider");
-const angleValue      = document.getElementById("angleValue");
-const servoArm        = document.getElementById("servoArm");
-const servoAngle      = document.getElementById("servoAngle");
-const irValue         = document.getElementById("irValue");
-const irDetected      = document.getElementById("irDetected");
-const irTimestamp     = document.getElementById("irTimestamp");
-const serialMessages  = document.getElementById("serialMessages");
-const clearSerialBtn  = document.getElementById("clearSerialBtn");
-const autoScrollCheck = document.getElementById("autoScrollSerial");
-const showHeartbeat   = document.getElementById("showHeartbeat");
-const historyBtn      = document.getElementById("historyBtn");
-const serialContainer = document.getElementById("serialContainer");
+const simDot         = document.getElementById("simDot");
+const simText        = document.getElementById("simText");
+const angleSlider    = document.getElementById("angleSlider");
+const angleValue     = document.getElementById("angleValue");
+const servoArm       = document.getElementById("servoArm");
+const servoAngle     = document.getElementById("servoAngle");
+const irValue        = document.getElementById("irValue");
+const irDetected     = document.getElementById("irDetected");
+const serialMessages = document.getElementById("serialMessages");
+const serialContainer= document.getElementById("serialContainer");
+const clearBtn       = document.getElementById("clearBtn");
+const msgInput       = document.getElementById("msgInput");
+const sendBtn        = document.getElementById("sendBtn");
 
 // ── Helpers ───────────────────────────────────────────────────────
 const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
 
 function setStatus(state) {
-  const states = {
-    connecting:    { color: "var(--muted)",    text: "Connecting…" },
-    authenticating:{ color: "var(--muted)",    text: "Authenticating…" },
-    waiting:       { color: "var(--warn)",     text: "Authenticated — waiting for ESP32…" },
-    connected:     { color: "var(--success)",  text: "Connected to ESP32" },
-    error:         { color: "var(--danger)",   text: "Auth failed — enable Anonymous Auth in Firebase Console" },
+  const map = {
+    connecting:    ["var(--muted)",   "Connecting…"],
+    waiting:       ["var(--warn)",    "Waiting for ESP32…"],
+    connected:     ["var(--success)", "Connected to ESP32"],
+    error:         ["var(--danger)",  "Auth failed — enable Anonymous Auth in Firebase Console"],
   };
-  const s = states[state] || states.connecting;
-  simDot.style.background = s.color;
-  simText.innerText        = s.text;
+  const [color, text] = map[state] || map.connecting;
+  simDot.style.background = color;
+  simText.innerText = text;
 }
 
 function applyServoUI(angle) {
@@ -295,66 +318,51 @@ function applyServoUI(angle) {
   angleValue.innerText     = a;
 }
 
-function formatTime(ts) {
-  if (!ts) return new Date().toLocaleTimeString();
-  const t = ts > 10_000_000_000 ? ts : ts * 1000;
-  return new Date(t).toLocaleTimeString();
-}
-
-function scrollToBottom() {
-  if (autoScrollCheck.checked) {
-    serialContainer.scrollTop = serialContainer.scrollHeight;
-  }
-}
-
 // ── Serial display ────────────────────────────────────────────────
-function clearSerial() {
-  serialMessages.innerHTML = '<div class="serial-placeholder">Waiting for serial data…</div>';
-}
-
-function addSerialMessage(text, timestamp, prepend = false) {
+function addMessage(text, source) {
   // Remove placeholder
   const ph = serialMessages.querySelector(".serial-placeholder");
   if (ph) ph.remove();
 
-  // Optionally hide heartbeats
-  const isHeartbeat = text.startsWith("[heartbeat]");
-  if (isHeartbeat && !showHeartbeat.checked) return;
+  const div = document.createElement("div");
+  div.className = "serial-message " + (source === "web" ? "from-web" : "from-esp");
 
-  const msgDiv = document.createElement("div");
-  msgDiv.className = "serial-message";
+  // Prefix with who sent it
+  const prefix = source === "web" ? "[Web] " : "[ESP32] ";
+  div.textContent = prefix + text;
 
-  const timeSpan = document.createElement("span");
-  timeSpan.className   = "serial-time";
-  timeSpan.textContent = formatTime(timestamp);
-
-  const textSpan = document.createElement("span");
-  textSpan.className   = "serial-text" + (isHeartbeat ? " heartbeat" : "");
-  textSpan.textContent = text;
-
-  msgDiv.appendChild(timeSpan);
-  msgDiv.appendChild(textSpan);
-
-  if (prepend) {
-    serialMessages.prepend(msgDiv);
-  } else {
-    serialMessages.appendChild(msgDiv);
-    scrollToBottom();
-  }
+  serialMessages.appendChild(div);
+  serialContainer.scrollTop = serialContainer.scrollHeight;
 }
 
-clearSerialBtn.addEventListener("click", clearSerial);
-
-// Re-render when heartbeat visibility toggles
-showHeartbeat.addEventListener("change", () => {
-  // Just clear; next Firebase event will repopulate
-  clearSerial();
+clearBtn.addEventListener("click", () => {
+  serialMessages.innerHTML =
+    '<div class="serial-placeholder">No messages yet. Type below to send one.</div>';
 });
 
-// ── Firebase listeners (called after auth confirmed) ──────────────
+// ── Send message from web → Firebase ─────────────────────────────
+function sendWebMessage() {
+  const text = msgInput.value.trim();
+  if (!text) return;
+  msgInput.value = "";
+
+  // Show immediately in local UI
+  addMessage(text, "web");
+
+  // Write to Firebase — ESP32 will read this
+  set(ref(db, "serial/message"), { text, source: "web" })
+    .catch(e => console.error("Send error:", e));
+}
+
+sendBtn.addEventListener("click", sendWebMessage);
+msgInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") sendWebMessage();
+});
+
+// ── Firebase listeners ────────────────────────────────────────────
 function setupListeners() {
 
-  // ── Servo angle ─────────────────────────────────────────────────
+  // Servo angle
   onValue(ref(db, "servo/angle"), snap => {
     const val = snap.val();
     if (val === null || val === undefined) return;
@@ -362,13 +370,11 @@ function setupListeners() {
     applyServoUI(val);
   });
 
-  // ── IR sensor ───────────────────────────────────────────────────
+  // IR sensor
   onValue(ref(db, "ir"), snap => {
     const data = snap.val();
     if (!data) return;
-
     irValue.innerText = data.raw ?? "—";
-
     if (data.detected) {
       irDetected.textContent = "YES";
       irDetected.className   = "ir-badge active";
@@ -376,81 +382,46 @@ function setupListeners() {
       irDetected.textContent = "NO";
       irDetected.className   = "ir-badge";
     }
-
-    if (data.timestamp) {
-      irTimestamp.innerText = formatTime(data.timestamp);
-    }
   });
 
-  // ── Serial latest — real-time single message ─────────────────────
-  // Fires every time ESP32 writes a new message (every ~1 second).
-  onValue(ref(db, "serial/latest"), snap => {
+  // Serial messages — only show ESP32-sent messages here
+  // (web messages are shown immediately in sendWebMessage above)
+  let lastEspMsg = "";
+  onValue(ref(db, "serial/message"), snap => {
     const data = snap.val();
     if (!data || !data.text) return;
-    addSerialMessage(data.text, data.timestamp);
+
+    // Only display messages from ESP32 (web messages already shown locally)
+    if (data.source === "esp32" && data.text !== lastEspMsg) {
+      lastEspMsg = data.text;
+      addMessage(data.text, "esp32");
+    }
   });
 }
 
-// ── Load history from /serial/log ────────────────────────────────
-// Called only when user clicks "Load history" button.
-function loadSerialHistory() {
-  historyBtn.textContent = "Loading…";
-  historyBtn.disabled    = true;
-
-  const histQuery = query(ref(db, "serial/log"), limitToLast(50));
-
-  onValue(histQuery, snap => {
-    const data = snap.val();
-    if (!data) {
-      historyBtn.textContent = "No history";
-      return;
-    }
-
-    clearSerial();
-
-    const entries = Object.entries(data)
-      .map(([, v]) => v)
-      .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-    entries.forEach(entry => {
-      if (entry.text) addSerialMessage(entry.text, entry.timestamp);
-    });
-
-    historyBtn.textContent = "History loaded";
-    scrollToBottom();
-  }, { onlyOnce: true });
-}
-
-historyBtn.addEventListener("click", loadSerialHistory);
-
-// ── Slider → write servo/angle ────────────────────────────────────
+// ── Slider → Firebase ─────────────────────────────────────────────
 let writeTimer = null;
 angleSlider.addEventListener("input", () => {
   const angle = Number(angleSlider.value);
   angleValue.innerText = angle;
   applyServoUI(angle);
-
   clearTimeout(writeTimer);
   writeTimer = setTimeout(() => {
     set(ref(db, "servo/angle"), angle)
-      .then(()  => console.log("Wrote servo/angle:", angle))
-      .catch(e  => console.error("Write error:", e));
+      .catch(e => console.error("Write error:", e));
   }, 80);
 });
 
-// ── Anonymous auth then start listeners ───────────────────────────
-// REQUIRED in Firebase Console: Authentication → Sign-in method
-//   → Anonymous → Enable
-setStatus("authenticating");
+// ── Auth ──────────────────────────────────────────────────────────
+setStatus("connecting");
 
 signInAnonymously(auth).catch(err => {
-  console.error("signInAnonymously error:", err);
+  console.error("Auth error:", err);
   setStatus("error");
 });
 
 onAuthStateChanged(auth, user => {
   if (user) {
-    console.log("Auth OK — UID:", user.uid);
     setStatus("waiting");
     setupListeners();
   } else {

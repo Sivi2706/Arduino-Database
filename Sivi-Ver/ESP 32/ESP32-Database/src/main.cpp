@@ -1,14 +1,10 @@
 /*
- * ESP32 Firebase — Working Version
- * Uses database secret (legacy token) — no email/password needed.
- * This is the most reliable method for Firebase_ESP_Client on ESP32.
- *
- * SETUP STEPS in Firebase Console:
- *   1. Project Settings → Service accounts → Database secrets
- *      → Show → copy the secret string → paste below as DATABASE_SECRET
- *   2. Realtime Database → Rules → set to:
- *      { "rules": { ".read": true, ".write": true } }
- *      (you can tighten this later once everything works)
+ * ESP32 Firebase — Simplified
+ * - No timestamps anywhere
+ * - Serial monitor only shows user-typed text
+ *   (from Serial Monitor terminal OR from website input box)
+ * - Heartbeats removed
+ * - Servo via direct LEDC PWM
  */
 
 #include <Arduino.h>
@@ -16,66 +12,77 @@
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
-#include <ESP32Servo.h>
 
 // ── Wi-Fi ─────────────────────────────────────────────────────────
 #define WIFI_SSID     "Xiaomi"
 #define WIFI_PASSWORD "G2706pls"
 
 // ── Firebase ──────────────────────────────────────────────────────
-// Get DATABASE_SECRET from:
-//   Firebase Console → Project Settings (gear icon)
-//   → Service accounts tab → Database secrets → Show
 #define FIREBASE_DATABASE_URL "https://sivi-arduino-database-default-rtdb.asia-southeast1.firebasedatabase.app"
 #define DATABASE_SECRET       "PASTE_YOUR_DATABASE_SECRET_HERE"
 
-// ── Pin definitions ───────────────────────────────────────────────
-#define SERVO_PIN 13
-#define IR_PIN    34
+// ── Servo (LEDC direct PWM) ───────────────────────────────────────
+#define SERVO_PIN     13
+#define LEDC_CHANNEL  0
+#define LEDC_FREQ_HZ  50
+#define LEDC_RES_BITS 16
+#define SERVO_MIN_US  500
+#define SERVO_MAX_US  2500
 
-// ── Upload intervals ──────────────────────────────────────────────
-#define IR_UPLOAD_INTERVAL_MS     500
-#define SERIAL_UPLOAD_INTERVAL_MS 1000
+// ── IR ────────────────────────────────────────────────────────────
+#define IR_PIN 34
+
+// ── Intervals ─────────────────────────────────────────────────────
+#define POLL_INTERVAL 100
+#define IR_INTERVAL   500
 
 // ── Firebase objects ──────────────────────────────────────────────
 FirebaseData fbStream;
+FirebaseData fbPoll;
 FirebaseData fbWrite;
-FirebaseData fbSerialWrite;
 FirebaseAuth fbAuth;
 FirebaseConfig fbConfig;
 
 // ── Globals ───────────────────────────────────────────────────────
-Servo servo;
-int  currentAngle      = 90;
-bool streamReady       = false;
-volatile bool newAngleAvailable = false;
-volatile int  pendingAngle      = 90;
-unsigned long lastIrUpload      = 0;
-unsigned long lastSerialUpload  = 0;
-unsigned long lastFirebaseCheck = 0;
-String serialBuffer = "";
+int  currentAngle = 90;
+bool streamReady  = false;
+
+unsigned long lastPoll   = 0;
+unsigned long lastIR     = 0;
+unsigned long lastFBCheck = 0;
+
+
+// ─────────────────────────────────────────────────────────────────
+// SERVO
+// ─────────────────────────────────────────────────────────────────
+uint32_t angleToDuty(int angle) {
+  angle   = constrain(angle, 0, 180);
+  long us = map(angle, 0, 180, SERVO_MIN_US, SERVO_MAX_US);
+  return (uint32_t)(us * 65536UL / 20000UL);
+}
+
+void applyAngle(int angle) {
+  angle = constrain(angle, 0, 180);
+  currentAngle = angle;
+  ledcWrite(LEDC_CHANNEL, angleToDuty(angle));
+  Serial.print("Servo → ");
+  Serial.println(currentAngle);
+}
 
 
 // ─────────────────────────────────────────────────────────────────
 // STREAM CALLBACKS
 // ─────────────────────────────────────────────────────────────────
-
 void streamCallback(FirebaseStream data) {
-  Serial.print("Stream event — dataType: ");
-  Serial.println(data.dataType());
-
   String dtype = data.dataType();
   if (dtype == "int" || dtype == "float" || dtype == "number") {
-    int angle = data.intData();
-    angle = constrain(angle, 0, 180);
-    pendingAngle      = angle;
-    newAngleAvailable = true;
+    applyAngle(data.intData());
   }
 }
 
 void streamTimeoutCallback(bool timeout) {
   if (timeout) {
-    Serial.println("Stream timeout — reconnecting...");
+    Serial.println("Stream timeout.");
     streamReady = false;
   }
 }
@@ -84,25 +91,21 @@ void streamTimeoutCallback(bool timeout) {
 // ─────────────────────────────────────────────────────────────────
 // WI-FI
 // ─────────────────────────────────────────────────────────────────
-
 void connectWiFi() {
   Serial.print("Connecting to Wi-Fi");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 60) {
     delay(500);
     Serial.print(".");
     attempts++;
   }
-
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println();
     Serial.print("Connected — IP: ");
     Serial.println(WiFi.localIP());
   } else {
-    Serial.println();
-    Serial.println("WiFi failed. Rebooting...");
+    Serial.println("\nWiFi failed. Rebooting...");
     delay(2000);
     ESP.restart();
   }
@@ -110,122 +113,86 @@ void connectWiFi() {
 
 
 // ─────────────────────────────────────────────────────────────────
-// SERIAL → FIREBASE
-//   /serial/latest   — overwritten each time (web reads this live)
-//   /serial/log/<ts> — append-only history for scrollback
+// SEND USER MESSAGE → FIREBASE
+// Only called when user actually types something.
+// Writes to /serial/message — a single string, no timestamp.
 // ─────────────────────────────────────────────────────────────────
-
-void sendSerialToFirebase(const String& message) {
-  if (message.length() == 0 || !Firebase.ready()) return;
-
-  int ts = (int)millis();
-
-  // 1. Overwrite /serial/latest
-  FirebaseJson latestJson;
-  latestJson.set("text",      message);
-  latestJson.set("timestamp", ts);
-  latestJson.set("source",    "esp32");
-
-  if (Firebase.RTDB.setJSON(&fbSerialWrite, "/serial/latest", &latestJson)) {
-    Serial.println("Serial → /serial/latest OK");
-  } else {
-    Serial.print("Serial latest error: ");
-    Serial.println(fbSerialWrite.errorReason());
-  }
-
-  // 2. Append to /serial/log/<timestamp> for history
-  FirebaseJson logJson;
-  logJson.set("text",      message);
-  logJson.set("timestamp", ts);
-
-  String logPath = "/serial/log/";
-  logPath += String(ts);
-
-  if (Firebase.RTDB.setJSON(&fbSerialWrite, logPath.c_str(), &logJson)) {
-    Serial.println("Serial → /serial/log OK");
-  } else {
-    Serial.print("Serial log error: ");
-    Serial.println(fbSerialWrite.errorReason());
-  }
+void sendMessage(const String& text) {
+  if (text.length() == 0 || !Firebase.ready()) return;
+  // Store as plain string — source tag tells web who sent it
+  FirebaseJson j;
+  j.set("text",   text);
+  j.set("source", "esp32");
+  Firebase.RTDB.setJSON(&fbWrite, "/serial/message", &j);
 }
 
 
 // ─────────────────────────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────────────────────────
-
 void setup() {
   Serial.begin(115200);
   delay(1000);
   Serial.println("\n\nESP32 Starting...");
+  Serial.println("Type anything and press Enter to send to the dashboard.");
+
+  ledcSetup(LEDC_CHANNEL, LEDC_FREQ_HZ, LEDC_RES_BITS);
+  ledcAttachPin(SERVO_PIN, LEDC_CHANNEL);
+  applyAngle(90);
 
   pinMode(IR_PIN, INPUT_PULLUP);
-  servo.attach(SERVO_PIN, 500, 2400);
-  servo.write(currentAngle);
 
   connectWiFi();
 
-  // ── Firebase config using legacy database secret ──────────────
-  // This bypasses the token auth system entirely — most reliable
-  // method for Firebase_ESP_Client without email/password accounts.
-  fbConfig.database_url = FIREBASE_DATABASE_URL;
+  fbConfig.database_url               = FIREBASE_DATABASE_URL;
   fbConfig.signer.tokens.legacy_token = DATABASE_SECRET;
+  fbConfig.timeout.serverResponse     = 8000;
+  fbConfig.timeout.socketConnection   = 20000;
 
-  fbConfig.timeout.serverResponse   = 10000;
-  fbConfig.timeout.socketConnection = 30000;
-
-  fbWrite.setResponseSize(2048);
-  fbSerialWrite.setResponseSize(2048);
-  fbStream.setResponseSize(2048);
+  fbStream.setResponseSize(4096);
+  fbPoll.setResponseSize(512);
+  fbWrite.setResponseSize(1024);
 
   Firebase.begin(&fbConfig, &fbAuth);
   Firebase.reconnectWiFi(true);
 
-  Serial.println("Firebase initialised with legacy token.");
-  serialBuffer = "ESP32 Started — System Ready";
+  Serial.println("Firebase ready.");
 }
 
 
 // ─────────────────────────────────────────────────────────────────
 // LOOP
 // ─────────────────────────────────────────────────────────────────
-
 void loop() {
 
-  // WiFi watchdog
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi lost. Reconnecting...");
     connectWiFi();
+    streamReady = false;
     delay(1000);
     return;
   }
 
   unsigned long now = millis();
 
-  // Wait for Firebase to be ready
   if (!Firebase.ready()) {
-    if (now - lastFirebaseCheck > 3000) {
+    if (now - lastFBCheck > 3000) {
       Serial.println("Waiting for Firebase...");
-      lastFirebaseCheck = now;
+      lastFBCheck = now;
     }
     delay(100);
     return;
   }
 
-  // Start RTDB stream once ready
+  // ── Start / restart stream ────────────────────────────────────
   if (!streamReady) {
-    Serial.println("Starting stream on /servo/angle...");
+    Serial.println("Starting stream...");
     if (Firebase.RTDB.beginStream(&fbStream, "/servo/angle")) {
-      Firebase.RTDB.setStreamCallback(&fbStream, streamCallback, streamTimeoutCallback);
+      Firebase.RTDB.setStreamCallback(
+        &fbStream, streamCallback, streamTimeoutCallback);
       streamReady = true;
-      Serial.println("Stream started.");
-
-      if (Firebase.RTDB.setInt(&fbWrite, "/servo/angle", currentAngle)) {
-        Serial.println("Initial servo position written.");
-      } else {
-        Serial.print("Initial write error: ");
-        Serial.println(fbWrite.errorReason());
-      }
+      Serial.println("Stream OK.");
+      Firebase.RTDB.setInt(&fbWrite, "/servo/angle", currentAngle);
     } else {
       Serial.print("Stream error: ");
       Serial.println(fbStream.errorReason());
@@ -234,78 +201,60 @@ void loop() {
     }
   }
 
-  // Apply angle from stream
-  if (newAngleAvailable) {
-    newAngleAvailable = false;
-    currentAngle = pendingAngle;
-    servo.write(currentAngle);
-    Serial.printf("Servo → %d°\n", currentAngle);
-
-    if (serialBuffer.length() > 0) serialBuffer += "\n";
-    serialBuffer += "Servo moved to ";
-    serialBuffer += String(currentAngle);
-    serialBuffer += "°";
+  // ── Fast servo poll — 100ms ───────────────────────────────────
+  if (now - lastPoll >= POLL_INTERVAL) {
+    lastPoll = now;
+    if (Firebase.RTDB.getInt(&fbPoll, "/servo/angle")) {
+      applyAngle(fbPoll.intData());
+    }
   }
 
-  // Handle Serial input from PC
+  // ── Serial input — only send when user types something ────────
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-
     if (input.length() > 0) {
-      if (serialBuffer.length() > 0) serialBuffer += "\n";
-      serialBuffer += "> ";
-      serialBuffer += input;
+      Serial.print("[You]: ");
+      Serial.println(input);
+      sendMessage(input);
+    }
+  }
 
-      if (input.equalsIgnoreCase("/status")) {
-        serialBuffer += "\nServo: ";
-        serialBuffer += String(currentAngle);
-        serialBuffer += "° | IR: ";
-        serialBuffer += String(digitalRead(IR_PIN));
-        serialBuffer += "\nIP: ";
-        serialBuffer += WiFi.localIP().toString();
-        serialBuffer += "\nFirebase: ";
-        serialBuffer += String(Firebase.ready() ? "Ready" : "Not ready");
+  // ── Check if website sent a message ──────────────────────────
+  // Web writes to /serial/message with source:"web"
+  // ESP32 reads it, prints to Serial, then clears it
+  static String lastWebMsg = "";
+  if (now % 300 == 0) {   // check every ~300ms
+    if (Firebase.RTDB.getJSON(&fbWrite, "/serial/message")) {
+      FirebaseJson& json = fbWrite.jsonObject();
+      FirebaseJsonData sourceData, textData;
+      json.get(sourceData, "source");
+      json.get(textData,   "text");
+
+      if (sourceData.success && textData.success) {
+        String source = sourceData.stringValue;
+        String text   = textData.stringValue;
+
+        // Only print web messages we haven't seen yet
+        if (source == "web" && text != lastWebMsg && text.length() > 0) {
+          lastWebMsg = text;
+          Serial.print("[Web]: ");
+          Serial.println(text);
+        }
       }
     }
   }
 
-  // ── Serial upload ─────────────────────────────────────────────
-  if (now - lastSerialUpload >= SERIAL_UPLOAD_INTERVAL_MS) {
-    lastSerialUpload = now;
-
-    // Heartbeat when idle
-    if (serialBuffer.length() == 0) {
-      serialBuffer  = "[heartbeat] uptime: ";
-      serialBuffer += String(now / 1000);
-      serialBuffer += "s | servo: ";
-      serialBuffer += String(currentAngle);
-      serialBuffer += "° | IR: ";
-      serialBuffer += String(digitalRead(IR_PIN) == LOW ? "detected" : "clear");
-    }
-
-    sendSerialToFirebase(serialBuffer);
-    serialBuffer = "";
-  }
-
-  // ── IR sensor upload ──────────────────────────────────────────
-  if (now - lastIrUpload >= IR_UPLOAD_INTERVAL_MS) {
-    lastIrUpload = now;
-
+  // ── IR upload ─────────────────────────────────────────────────
+  if (now - lastIR >= IR_INTERVAL) {
+    lastIR = now;
     int  irRaw    = digitalRead(IR_PIN);
     bool detected = (irRaw == LOW);
 
     FirebaseJson irJson;
-    irJson.set("raw",       irRaw);
-    irJson.set("detected",  detected);
-    irJson.set("timestamp", (int)now);
+    irJson.set("raw",      irRaw);
+    irJson.set("detected", detected);
 
-    if (Firebase.RTDB.setJSON(&fbWrite, "/ir", &irJson)) {
-      Serial.printf("IR — raw: %d, detected: %s\n",
-                    irRaw, detected ? "YES" : "NO");
-    } else {
-      Serial.print("IR upload error: ");
-      Serial.println(fbWrite.errorReason());
-    }
+    Firebase.RTDB.setJSON(&fbWrite, "/ir", &irJson);
   }
 }
