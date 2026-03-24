@@ -1,3 +1,4 @@
+/* ========== GLOBAL STYLES ========== */
 body {
   font-family: Arial, sans-serif;
   max-width: 700px;
@@ -7,6 +8,7 @@ body {
   color: #222;
 }
 
+/* ========== CARD STYLES ========== */
 .card {
   background: #fff;
   border: 1px solid #ddd;
@@ -23,10 +25,12 @@ h1, h2 {
   font-weight: bold;
 }
 
+/* ========== FORM ELEMENTS ========== */
 input[type="range"] {
   width: 100%;
 }
 
+/* ========== MESSAGE TERMINAL ========== */
 #messages {
   height: 180px;
   overflow-y: auto;
@@ -36,6 +40,7 @@ input[type="range"] {
   white-space: pre-wrap;
 }
 
+/* ========== ROW LAYOUT (FLEXBOX) ========== */
 .row {
   display: flex;
   gap: 10px;

@@ -1,3 +1,7 @@
+/* ============================================
+   BASIC PAGE STYLE
+============================================ */
+
 body {
   font-family: Arial, sans-serif;
   max-width: 700px;
@@ -7,6 +11,11 @@ body {
   color: #222;
 }
 
+
+/* ============================================
+   CARD PANELS
+============================================ */
+
 .card {
   background: #fff;
   border: 1px solid #ddd;
@@ -15,17 +24,29 @@ body {
   margin-bottom: 18px;
 }
 
+
+/* Titles */
+
 h1, h2 {
   margin-top: 0;
 }
+
+
+/* Status text */
 
 .status {
   font-weight: bold;
 }
 
+
+/* Slider width */
+
 input[type="range"] {
   width: 100%;
 }
+
+
+/* Message window */
 
 #messages {
   height: 180px;
@@ -36,15 +57,24 @@ input[type="range"] {
   white-space: pre-wrap;
 }
 
+
+/* Message input row */
+
 .row {
   display: flex;
   gap: 10px;
 }
 
+
+/* Input field */
+
 input[type="text"] {
   flex: 1;
   padding: 8px;
 }
+
+
+/* Button */
 
 button {
   padding: 8px 14px;

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div style="text-align: center; margin-bottom: 50px;">
+  <img
+    src="Images/IEM 2021 Logo Blue Edition.png"
+    alt="IEM 2021 Logo"
+    style="max-width: 220px; width: 100%; margin-bottom: 20px;"
+  />
+  <h1 style="margin: 0;">ESP32 Firebase Dashboard</h1>
+</div>
+
+  <!-- Shows Firebase connection status -->
+  <p class="status" id="status">Connecting...</p>
+
+  <!-- ========== SERVO CONTROL CARD ========== -->
+  <div class="card">
+
+    <h2>Servo Control</h2>
+
+    <!-- Shows current slider angle -->
+    <p>Angle: <span id="angleValue">90</span>°</p>
+
+    <!-- Slider used to control servo -->
+    <input id="angleSlider" type="range" min="0" max="180" value="90">
+
+    <!-- Shows the value currently stored in Firebase -->
+    <p>ESP32 angle: <span id="servoAngle">90</span>°</p>
+
+  </div>
+
+  <!-- ========== IR SENSOR CARD ========== -->
+  <div class="card">
+
+    <h2>IR Sensor</h2>
+
+    <!-- Shows if object detected -->
+    <p>Detected: <span id="irDetected"></span></p>
+
+    <!-- Shows raw sensor value -->
+    <p>Raw: <span id="irRaw">--</span></p>
+
+  </div>
+
+  <!-- ========== MESSAGE TERMINAL CARD ========== -->
+  <div class="card">
+
+    <h2>Messages</h2>
+
+    <!-- Message display area -->
+    <div id="messages">No messages yet.</div>
+
+    <br>
+
+    <!-- Message input row -->
+    <div class="row">
+
+      <input id="msgInput" type="text" placeholder="Type a message">
+
+      <button id="sendBtn">Send</button>
+
+    </div>
+
+  </div>
+
+  <!-- Load JavaScript logic -->
+  <script type="module" src="app.js"></script>
+
+</body>
+</html>

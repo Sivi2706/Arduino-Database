@@ -1,6 +1,5 @@
-
 /* ============================================
-   IMPORT FIREBASE LIBRARIES 
+   PART 1: IMPORT FIREBASE LIBRARIES
 ============================================ */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -12,7 +11,7 @@ from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 
 /* ============================================
-   FIREBASE CONFIGURATION
+   PART 2: FIREBASE CONFIGURATION
    REPLACE WITH YOUR OWN PROJECT SETTINGS
 ============================================ */
 
@@ -33,202 +32,118 @@ const firebaseConfig = {
 ============================================ */
 
 const app = initializeApp(firebaseConfig);
-
 const auth = getAuth(app);
-
 const db = getDatabase(app);
 
 
 /* ============================================
-   GET HTML ELEMENTS
+   PART 3: GET HTML ELEMENTS
 ============================================ */
 
 const statusEl    = document.getElementById("status");
-
 const angleSlider = document.getElementById("angleSlider");
-
 const angleValue  = document.getElementById("angleValue");
-
 const servoAngle  = document.getElementById("servoAngle");
-
 const irDetected  = document.getElementById("irDetected");
-
 const irRaw       = document.getElementById("irRaw");
-
 const messages    = document.getElementById("messages");
-
 const msgInput    = document.getElementById("msgInput");
-
 const sendBtn     = document.getElementById("sendBtn");
-
 
 let lastEspMsg = "";
 
 
 /* ============================================
-   FUNCTION: DISPLAY MESSAGE
+PART 4   : Serial Display
 ============================================ */
 
+// FUNCTION: DISPLAY MESSAGE
 function addMessage(text, source) {
-
   if (messages.textContent === "No messages yet.") {
     messages.textContent = "";
   }
-
   messages.textContent += `[${source}] ${text}\n`;
-
   messages.scrollTop = messages.scrollHeight;
-
 }
 
 
-/* ============================================
-   FUNCTION: SEND MESSAGE FROM WEB
-============================================ */
-
+// FUNCTION: SEND MESSAGE FROM WEB
 function sendWebMessage() {
-
   const text = msgInput.value.trim();
-
   if (!text) return;
-
   addMessage(text, "Web");
-
   msgInput.value = "";
-
   set(ref(db, "serial/message"), {
-
     text: text,
-
     source: "web"
-
   });
-
 }
 
 
 /* ============================================
-   SERVO SLIDER CONTROL
-   Path: "servo/msgTitle" — matches .ino beginStream path
+   PART 5: SERVO SLIDER CONTROL Listener
 ============================================ */
 
 angleSlider.addEventListener("input", () => {
-
   const angle = Number(angleSlider.value);
-
   angleValue.textContent = angle;
-
-  // Write value to Firebase — matches .ino: Firebase.RTDB.beginStream(&fbdoStream, "servo/msgTitle")
   set(ref(db, "servo/msgTitle"), angle);
-
 });
 
-
 /* ============================================
-   BUTTON EVENTS
+   PART 6: Sen button Listener
 ============================================ */
-
+// BUTTON EVENTS
 sendBtn.addEventListener("click", sendWebMessage);
-
 msgInput.addEventListener("keydown", (e) => {
-
   if (e.key === "Enter") {
-
     sendWebMessage();
-
   }
-
 });
 
 
 /* ============================================
-   LOGIN TO FIREBASE
+   PART 7: Listen for Changes from Firebase
 ============================================ */
 
+// LOGIN TO FIREBASE
 signInAnonymously(auth).catch(err => {
-
-  console.error(err);
-
+  console.error(err)
   statusEl.textContent = "Auth failed";
-
 });
 
-
-/* ============================================
-   AFTER LOGIN
-============================================ */
-
+// AFTER LOGIN - ATTACH REAL-TIME LISTENERS
 onAuthStateChanged(auth, (user) => {
-
   if (!user) {
-
     statusEl.textContent = "Connecting...";
-
     return;
-
   }
-
   statusEl.textContent = "Connected";
 
-
-  /* -----------------------------------------
-     SERVO DATA
-     Path: "servo/msgTitle" — matches .ino beginStream path
-  ----------------------------------------- */
-
+  /* ----- SERVO LISTENER ----- */
   onValue(ref(db, "servo/msgTitle"), (snap) => {
-
     const val = snap.val();
-
     if (val === null) return;
-
     angleSlider.value = val;
-
     angleValue.textContent = val;
-
     servoAngle.textContent = val;
-
   });
 
-
-  /* -----------------------------------------
-     IR SENSOR DATA
-     Path: "sensor/obstacle" — matches .ino: Firebase.RTDB.setInt(&fbdoSet, "sensor/obstacle", status)
-     Value: 0 = object detected, 1 = clear
-  ----------------------------------------- */
-
+  /* ----- IR SENSOR LISTENER ----- */
   onValue(ref(db, "sensor/obstacle"), (snap) => {
-
     const val = snap.val();
-
     if (val === null) return;
-
-    // 0 = Object detected, 1 = Clear (digitalRead behaviour)
     irRaw.textContent = val;
-
     irDetected.textContent = val === 0 ? "YES" : "NO";
-
   });
 
-
-  /* -----------------------------------------
-     MESSAGE FROM ESP32
-  ----------------------------------------- */
-
+  /* ----- MESSAGE LISTENER ----- */
   onValue(ref(db, "serial/message"), (snap) => {
-
     const data = snap.val();
-
     if (!data || !data.text) return;
-
     if (data.source === "esp32" && data.text !== lastEspMsg) {
-
       lastEspMsg = data.text;
-
       addMessage(data.text, "ESP32");
-
     }
-
   });
-
 });
